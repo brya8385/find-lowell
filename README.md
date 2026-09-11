@@ -12,6 +12,13 @@ Working prototype of a dispensary locator for Lowell Herb Co, built from our own
 | Carries Lowell | We ship it; no menu feed covers the store | NJ, IL | Sell-in, last 180 days |
 | Partner-reported | Location by city, not verified address | CO, NM, CA | Vireo / Standard Wellness reports |
 
+## Prices
+
+Prices shown are the **retail shelf price from the store's own menu**, including any discount
+it is running. They are never our wholesale price. Stores that come from partner reports show
+no price, because the only figure we hold for them is what we charged the retailer — which is
+not what a shopper pays. Tier A: 500 of 534 priced. Tier B and C: zero, by construction.
+
 ## Notes
 
 - Coordinates geocoded once via the US Census geocoder with an OpenStreetMap fallback.
