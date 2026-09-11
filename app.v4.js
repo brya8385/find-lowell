@@ -4,7 +4,7 @@ const LINE_ORDER = ["Quicks","Smokes","35's","Outlaws","Littles","Ground Flower"
 
 let doors = [], map, cluster, markers = new Map(), ring = null, originMark = null;
 let fLine=null, fLean=null, fState=null, stockOnly=true, showUnconfirmed=false;
-let radius=50, origin=null, sel=null, rows=[];
+let radius=50, origin=null, sel=null, rows=[], started=false;
 
 const $ = id => document.getElementById(id);
 
@@ -27,10 +27,9 @@ function buildMap(){
     attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom:19
   }).addTo(map);
-  cluster = L.markerClusterGroup({
-    showCoverageOnHover:false, maxClusterRadius:45, disableClusteringAtZoom:11
-  });
-  map.addLayer(cluster);
+  // No clustering: one pin per store at every zoom. Dense metros look busy when
+  // zoomed out, which is the honest picture of where our distribution actually is.
+  cluster = L.layerGroup().addTo(map);
 
   const legend = L.control({position:'bottomright'});
   legend.onAdd = () => {
@@ -47,7 +46,7 @@ function buildMap(){
 
 function pinFor(d){
   const cls = d.C ? 'pin-tc' : (d.B ? 'pin-tb' : (d.k>0 ? 'pin-stock' : 'pin-carry'));
-  const size = (sel===d) ? 18 : 12;
+  const size = (sel===d) ? 16 : 9;
   return L.divIcon({className:'', html:`<div class="pin ${cls}" style="width:${size}px;height:${size}px"></div>`,
                     iconSize:[size,size], iconAnchor:[size/2,size/2]});
 }
@@ -82,7 +81,7 @@ function chip(wrap, label, pressed, onclick, data){
 function buildChips(){
   const sts=[...new Set(doors.map(d=>d.s))].sort();
   sts.forEach(s => chip($('stChips'), s, false, () => {
-    fState = (fState===s?null:s); origin=null; $('q').value='';
+    fState = (fState===s?null:s); origin=null; $('q').value=''; started = !!fState || started;
     [...$('stChips').children].forEach(x => x.dataset && x.setAttribute && x.dataset.st && x.setAttribute('aria-pressed', String(x.dataset.st===fState)));
     render(); fitState();
   }, {st:s}));
@@ -114,7 +113,7 @@ function wireSearch(){
     if (c) (cityIdx[c]=cityIdx[c]||[]).push([d.la,d.lo]);
   });
   let t; $('q').addEventListener('input', e => {
-    clearTimeout(t); t=setTimeout(() => { origin=resolve(e.target.value); if(origin) fState=null; render(); frame(); }, 180);
+    clearTimeout(t); t=setTimeout(() => { origin=resolve(e.target.value); if(origin){ fState=null; started=true; } render(); frame(); }, 180);
   });
 }
 function resolve(q){
@@ -158,6 +157,7 @@ function scrollToCard(d){
 
 /* ---------------- render ---------------- */
 function visible(){
+  if (!started) return doors.slice();
   return doors.filter(d => {
     if ((d.B || d.C) && !showUnconfirmed) return false;
     if (!d.B && !d.C && stockOnly && d.k<=0) return false;
@@ -197,6 +197,26 @@ function render(){
   }
 
   const list=$('list'); list.innerHTML='';
+  if (!started){
+    $('rcount').textContent = doors.length + ' stores';
+    $('rnote').textContent  = 'across ' + new Set(doors.map(d=>d.s)).size + ' states';
+    $('reveal').hidden = true;
+    const g=document.createElement('div'); g.className='gate';
+    g.innerHTML = '<p class="gh">Where are you?</p>'+
+      '<p class="gp">Enter a ZIP code above, or pick a state, and we\'ll show what is on the shelf near you.</p>';
+    const row=document.createElement('div'); row.className='gstates';
+    [...new Set(doors.map(d=>d.s))].sort().forEach(st => {
+      const n=doors.filter(x=>x.s===st).length;
+      const b=document.createElement('button'); b.className='gbtn';
+      b.innerHTML = `<strong>${st}</strong><span>${n} stores</span>`;
+      b.onclick=()=>{ fState=st; started=true;
+        [...$('stChips').children].forEach(x=>x.dataset.st&&x.setAttribute('aria-pressed',String(x.dataset.st===st)));
+        render(); fitState(); };
+      row.appendChild(b);
+    });
+    g.appendChild(row); list.appendChild(g);
+    drawMarkers(); return;
+  }
   if (!rows.length){
     const e=document.createElement('div'); e.className='empty';
     e.textContent = origin&&radius ? `No stores within ${radius} miles. Try a wider radius.` : 'No stores match those filters.';
