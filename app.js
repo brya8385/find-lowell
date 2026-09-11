@@ -21,9 +21,11 @@ fetch('data/doors.json').then(r => r.json()).then(data => {
 /* ---------------- map ---------------- */
 function buildMap(){
   map = L.map('map', {scrollWheelZoom:true, zoomControl:true}).setView([39.5,-95],4);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    subdomains:'abcd', maxZoom:19
+  // OpenStreetMap standard tiles: no API key, and they carry the city, road and
+  // neighbourhood labels a shopper needs to orient themselves.
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom:19
   }).addTo(map);
   cluster = L.markerClusterGroup({
     showCoverageOnHover:false, maxClusterRadius:45, disableClusteringAtZoom:11
