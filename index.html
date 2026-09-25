@@ -37,6 +37,8 @@
   .sub{color:var(--ink3);font-size:.85rem}
   .asof{font-family:"IBM Plex Mono",monospace;font-size:.7rem;color:var(--ink3);
         border:1px solid var(--rule2);border-radius:2px;padding:2px 7px;margin-left:auto}
+  .stale{margin:-6px 0 10px;font-size:.78rem;color:var(--carry)}
+  .stale[hidden]{display:none}
   .controls{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
   .search{display:flex;align-items:center;gap:8px;border:1px solid var(--rule2);background:var(--sand);
           border-radius:3px;padding:0 10px;min-width:230px;flex:0 1 300px}
@@ -50,16 +52,20 @@
 
   main{max-width:1400px;margin:0 auto;padding:0 20px 20px;display:grid;
        grid-template-columns:minmax(340px,420px) minmax(0,1fr);gap:18px;height:calc(100vh - 118px)}
-  @media (max-width:920px){main{grid-template-columns:1fr;height:auto}#map{height:60vh}}
+  /* Phones: the map sits above the list and stays pinned while the list scrolls
+     under it, so tapping a card shows where the store is (it used to start
+     ~47,000 px down, below every card). */
+  @media (max-width:920px){
+    main{grid-template-columns:1fr;height:auto}
+    #map{order:-1;position:sticky;top:0;z-index:900;height:42vh;min-height:240px;border-radius:0 0 3px 3px}
+    .list{overflow:visible}
+    .card{scroll-margin-top:calc(42vh + 12px)}
+  }
 
   .panel{display:flex;flex-direction:column;min-height:0;padding-top:14px}
   .resulthead{display:flex;align-items:baseline;gap:9px;padding-bottom:9px;flex:none}
   .rcount{font-family:"Bricolage Grotesque",sans-serif;font-weight:600}
   .rnote{font-size:.8rem;color:var(--ink3)}
-  .reveal{margin-bottom:9px;padding:9px 11px;border:1px dashed var(--rule2);border-radius:3px;
-          font-size:.81rem;color:var(--ink2);display:flex;gap:9px;align-items:center;flex-wrap:wrap;flex:none}
-  .reveal[hidden]{display:none}
-  .reveal button{background:none;border:0;color:var(--amber);font-weight:600;cursor:pointer;padding:0;text-decoration:underline}
   .list{overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-right:4px;flex:1;min-height:0}
 
   .card{border:1px solid var(--rule);background:var(--surface);padding:12px 14px;cursor:pointer;
@@ -111,8 +117,7 @@
   .leaflet-container{font-family:"Source Sans 3",sans-serif;background:var(--sunk)}
   .pin{border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.35)}
   .pin-stock{background:var(--stock)} .pin-carry{background:var(--carry)}
-  .pin-tb{background:transparent;border:2px dashed var(--carry)}
-  .pin-tc{background:var(--grey);opacity:.8}
+  .pin-tc{background:var(--grey)}
   .pop{font-family:"Source Sans 3",sans-serif;min-width:190px}
   .pop b{font-family:"Bricolage Grotesque",sans-serif;font-size:.95rem}
   .pop .pa{color:var(--ink2);font-size:.82rem;margin:2px 0 6px}
@@ -130,6 +135,7 @@
       <span class="sub">Dispensaries carrying Lowell near you</span>
       <span class="asof" id="asof">—</span>
     </div>
+    <p class="stale" id="stale" hidden></p>
     <div class="controls">
       <label class="search">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
@@ -139,7 +145,7 @@
       <div class="grp" id="radChips"><span class="lbl">Within</span></div>
       <div class="grp" id="lineChips"><span class="lbl">Line</span></div>
       <div class="grp" id="leanChips"><span class="lbl">Type</span></div>
-      <button class="chip" id="stockOnly" aria-pressed="true">In stock only</button>
+      <button class="chip" id="stockOnly" aria-pressed="true">Hide out of stock</button>
     </div>
   </div>
 </header>
@@ -147,7 +153,6 @@
 <main>
   <section class="panel">
     <div class="resulthead"><span class="rcount" id="rcount">—</span><span class="rnote" id="rnote"></span></div>
-    <div class="reveal" id="reveal" hidden></div>
     <div class="list" id="list"></div>
   </section>
   <div id="map"></div>
@@ -156,6 +161,6 @@
 <footer id="foot"></footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="app.v4.js"></script>
+<script src="app.v5.js"></script>
 </body>
 </html>

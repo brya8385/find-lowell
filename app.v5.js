@@ -3,20 +3,39 @@ const LEAN_NAME = {I:"Indica", S:"Sativa", H:"Hybrid", V:"Variety"};
 const LINE_ORDER = ["Quicks","Smokes","35's","Outlaws","Littles","Ground Flower","Flower","2-Pack"];
 
 let doors = [], map, cluster, markers = new Map(), ring = null, originMark = null;
-let fLine=null, fLean=null, fState=null, stockOnly=true, showUnconfirmed=false;
+let fLine=null, fLean=null, fState=null, hideOut=true;
 let radius=50, origin=null, sel=null, rows=[], started=false;
 
 const $ = id => document.getElementById(id);
 
 fetch('data/doors.json').then(r => r.json()).then(data => {
   doors = data.doors;
-  $('asof').textContent = 'AS OF ' + data.asof;
+  freshness(data);
   $('foot').innerHTML = data.note;
   buildMap();
   buildChips();
   wireSearch();
   render();
 });
+
+/* ---------------- freshness ---------------- */
+// "Updated" is when the file was last rebuilt; "menus as of" is the date of the
+// newest menu-feed data behind it. More than two days behind today, say so.
+const fmtDay = iso => new Date(iso.length === 10 ? iso + 'T12:00:00' : iso)
+  .toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+function freshness(data){
+  const parts = [];
+  if (data.built) parts.push('Updated ' + fmtDay(data.built));
+  if (data.asof) parts.push('menus as of ' + fmtDay(data.asof));
+  $('asof').textContent = parts.join(' · ') || '—';
+  if (!data.asof) return;
+  const t = new Date(); t.setHours(12,0,0,0);
+  const days = Math.round((t - new Date(data.asof + 'T12:00:00')) / 864e5);
+  if (days > 2){
+    $('stale').hidden = false;
+    $('stale').textContent = 'Menu data is ' + days + ' days old and may be out of date.';
+  }
+}
 
 /* ---------------- map ---------------- */
 function buildMap(){
@@ -36,16 +55,25 @@ function buildMap(){
     const d = L.DomUtil.create('div','legend');
     d.innerHTML =
       '<div><i style="background:#2e6b4a"></i>In stock now</div>'+
-      '<div><i style="background:#8a6314"></i>Carries Lowell, out today</div>'+
-      '<div><i style="background:transparent;border:2px dashed #8a6314"></i>We ship it, no menu feed</div>'+
-      '<div><i style="background:#6e6a63;opacity:.8"></i>Partner-reported</div>';
+      '<div><i style="background:#8a6314"></i>Currently out of stock</div>'+
+      '<div><i style="background:#6e6a63"></i>Lowell store</div>';
     return d;
   };
   legend.addTo(map);
 }
 
+// st: in_stock | out_of_stock | carries (no live menu we can read: no stock claim).
+// Files built before 25 Sep 2026 have no st; derive it the same way.
+const status = d => d.st || ((d.B || d.C) ? 'carries' : (d.k > 0 ? 'in_stock' : 'out_of_stock'));
+const ST_ORDER = {in_stock:0, carries:1, out_of_stock:2};
+function badge(d){
+  const st = status(d);
+  if (st === 'in_stock') return `<span class="badge b-stock">In stock · ${d.k} product${d.k>1?'s':''}</span>`;
+  if (st === 'out_of_stock') return `<span class="badge b-carry">Currently out of stock</span>`;
+  return '';
+}
 function pinFor(d){
-  const cls = d.C ? 'pin-tc' : (d.B ? 'pin-tb' : (d.k>0 ? 'pin-stock' : 'pin-carry'));
+  const cls = {in_stock:'pin-stock', out_of_stock:'pin-carry', carries:'pin-tc'}[status(d)];
   const size = (sel===d) ? 16 : 9;
   return L.divIcon({className:'', html:`<div class="pin ${cls}" style="width:${size}px;height:${size}px"></div>`,
                     iconSize:[size,size], iconAnchor:[size/2,size/2]});
@@ -62,13 +90,9 @@ function drawMarkers(){
 }
 
 function popup(d){
-  const badge = d.C ? `<span class="badge b-grey">${d.src||'Partner-reported'}</span>`
-    : d.B ? `<span class="badge b-carry">Carries Lowell · shipped ${d.last}</span>`
-    : d.k>0 ? `<span class="badge b-stock">In stock · ${d.k} product${d.k>1?'s':''}</span>`
-    : `<span class="badge b-carry">Carries Lowell</span>`;
   const tel = d.tel ? `<div class="pa"><a href="tel:${d.tel.replace(/[^0-9+]/g,'')}">${d.tel}</a></div>` : '';
   const link = d.u ? `<a class="cta" href="${d.u}" target="_blank" rel="noopener">${d.uk==='verified'?'See Lowell here':'View menu'} →</a>` : '';
-  return `<div class="pop"><b>${esc(d.n)}</b><div class="pa">${esc(d.a)}</div>${tel}${badge}<div>${link}</div></div>`;
+  return `<div class="pop"><b>${esc(d.n)}</b><div class="pa">${esc(d.a)}</div>${tel}${badge(d)}<div>${link}</div></div>`;
 }
 const esc = s => String(s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -101,7 +125,7 @@ function buildChips(){
       [...$('leanChips').children].forEach(x => x.dataset.lean && x.setAttribute('aria-pressed', String(x.dataset.lean===fLean)));
       render();
     }, {lean:c}));
-  $('stockOnly').onclick = () => { stockOnly=!stockOnly; $('stockOnly').setAttribute('aria-pressed',String(stockOnly)); render(); };
+  $('stockOnly').onclick = () => { hideOut=!hideOut; $('stockOnly').setAttribute('aria-pressed',String(hideOut)); render(); };
 }
 
 /* ---------------- search ---------------- */
@@ -159,8 +183,7 @@ function scrollToCard(d){
 function visible(){
   if (!started) return doors.slice();
   return doors.filter(d => {
-    if ((d.B || d.C) && !showUnconfirmed) return false;
-    if (!d.B && !d.C && stockOnly && d.k<=0) return false;
+    if (hideOut && status(d) === 'out_of_stock') return false;
     if (fState && d.s!==fState) return false;
     if (fLine && !(d.L||[]).includes(fLine)) return false;
     if (fLean && !(d.E||[]).includes(fLean)) return false;
@@ -173,34 +196,17 @@ function render(){
     rows.forEach(d => d._m = miles(origin[0],origin[1],d.la,d.lo));
     if (radius) rows = rows.filter(d => d._m<=radius);
   }
-  rows.sort(origin ? (a,b)=>a._m-b._m : (a,b)=> (b.k||0)-(a.k||0) || a.n.localeCompare(b.n));
+  rows.sort(origin ? (a,b)=>a._m-b._m
+    : (a,b)=> ST_ORDER[status(a)]-ST_ORDER[status(b)] || (b.k||0)-(a.k||0) || a.n.localeCompare(b.n));
 
   $('rcount').textContent = rows.length + (rows.length===1?' store':' stores');
   $('rnote').textContent = origin ? (radius?`within ${radius} miles, nearest first`:'nearest first')
-                                  : (stockOnly?'with Lowell in stock today':'carrying Lowell');
-
-  const rev=$('reveal');
-  const inScope = d => (!fState || d.s===fState) && (!origin || !radius || miles(origin[0],origin[1],d.la,d.lo)<=radius);
-  if (!showUnconfirmed){
-    const hid = doors.filter(d => (d.B||d.C) && inScope(d)).length;
-    if (hid){
-      rev.hidden=false;
-      rev.innerHTML = `<span><strong>${hid}</strong> more ${hid===1?'store':'stores'} carry Lowell but aren't on a live menu feed.</span>`;
-      const b=document.createElement('button'); b.textContent='Show them';
-      b.onclick=()=>{showUnconfirmed=true;render();}; rev.appendChild(b);
-    } else rev.hidden=true;
-  } else {
-    rev.hidden=false;
-    rev.innerHTML = `<span>Including <strong>${rows.filter(d=>d.B||d.C).length}</strong> stores we can't confirm stock for.</span>`;
-    const b=document.createElement('button'); b.textContent='Hide them';
-    b.onclick=()=>{showUnconfirmed=false;render();}; rev.appendChild(b);
-  }
+                                  : 'carrying Lowell';
 
   const list=$('list'); list.innerHTML='';
   if (!started){
     $('rcount').textContent = doors.length + ' stores';
     $('rnote').textContent  = 'across ' + new Set(doors.map(d=>d.s)).size + ' states';
-    $('reveal').hidden = true;
     const g=document.createElement('div'); g.className='gate';
     g.innerHTML = '<p class="gh">Where are you?</p>'+
       '<p class="gp">Enter a ZIP code above, or pick a state, and we\'ll show what is on the shelf near you.</p>';
@@ -228,12 +234,8 @@ function render(){
 
 function card(d){
   const c=document.createElement('button');
-  c.type='button'; c.className='card'+(sel===d?' sel':'')+((d.B||d.C)?' tb':'');
-  const badge = d.C ? `<span class="badge b-grey">Partner-reported</span>`
-    : d.B ? `<span class="badge b-carry">Carries Lowell · shipped ${d.last}</span>`
-    : d.k>0 ? `<span class="badge b-stock">In stock · ${d.k} product${d.k>1?'s':''}</span>`
-    : `<span class="badge b-carry">Carries Lowell</span>`;
-  const price = (d.k>0&&d.p) ? `<span class="price">${d.p==d.ph?'$'+d.p:'$'+d.p+'–$'+d.ph}</span>` : '';
+  c.type='button'; c.className='card'+(sel===d?' sel':'');
+  const price = (status(d)==='in_stock'&&d.p) ? `<span class="price">${d.p==d.ph?'$'+d.p:'$'+d.p+'–$'+d.ph}</span>` : '';
   const dist = (origin&&d._m!=null) ? `<span class="cdist">${d._m<10?d._m.toFixed(1):Math.round(d._m)} mi</span>` : '';
   const tel = d.tel ? `<div class="ctel"><a href="tel:${d.tel.replace(/[^0-9+]/g,'')}">${d.tel}</a></div>` : '';
   const P = d.P||[]; const shown = (sel===d)?P:P.slice(0,5);
@@ -243,11 +245,11 @@ function card(d){
     `<span class="pprice">${pp?'$'+pp:''}</span>${sp?`<span class="pspec">${sp}</span>`:''}</div>`).join('');
   const hidden = P.length-shown.length+(d.more||0);
   const prods = P.length ? `<div class="prods">${prows}${hidden>0?`<div class="pmore">+${hidden} more — tap to see all</div>`:''}</div>` : '';
-  const link = d.u ? `<a class="cta${d.uk==='verified'?'':' ghost'}" href="${d.u}" target="_blank" rel="noopener">${d.uk==='verified'?'See Lowell at this store':'View their menu'} →</a>`
-    : (d.B ? `<div class="pmore" style="margin-top:8px">Call ahead — not on a menu feed we can read.</div>` : '');
-  const src = d.C && d.src ? `<div class="src">${d.src}${d.approx?' · location approximate':''}</div>` : '';
+  const link = d.u ? `<a class="cta${d.uk==='verified'?'':' ghost'}" href="${d.u}" target="_blank" rel="noopener">${d.uk==='verified'?'See Lowell at this store':'View their menu'} →</a>` : '';
+  const src = d.approx ? `<div class="src">Pin placed by town; check the address</div>` : '';
+  const meta = badge(d) + price;
   c.innerHTML = `<div class="ctop"><span class="cname">${esc(d.n)}</span>${dist}</div>
-    <div class="caddr">${esc(d.a)}</div>${tel}<div class="cmeta">${badge}${price}</div>${prods}${src}${link}`;
+    <div class="caddr">${esc(d.a)}</div>${tel}${meta?`<div class="cmeta">${meta}</div>`:''}${prods}${src}${link}`;
   c.onclick = ev => {
     if (ev.target.closest('a')) return;
     sel = (sel===d?null:d); render();
