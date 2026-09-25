@@ -240,7 +240,7 @@ function card(d){
   const tel = d.tel ? `<div class="ctel"><a href="tel:${d.tel.replace(/[^0-9+]/g,'')}">${d.tel}</a></div>` : '';
   const P = d.P||[]; const shown = (sel===d)?P:P.slice(0,5);
   const prows = shown.map(([nm,ln,le,pp,sp]) =>
-    `<div class="prow"><span class="pline">${(ln?ln+' — ':'')+esc(nm)}</span>`+
+    `<div class="prow"><span class="pline">${ln&&nm?ln+' — '+esc(nm):(ln||esc(nm))}</span>`+
     `<span class="ptags">${le?`<span class="tag t-${le}">${LEAN_NAME[le]}</span>`:''}</span>`+
     `<span class="pprice">${pp?'$'+pp:''}</span>${sp?`<span class="pspec">${sp}</span>`:''}</div>`).join('');
   const hidden = P.length-shown.length+(d.more||0);
