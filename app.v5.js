@@ -252,7 +252,11 @@ function card(d){
     <div class="caddr">${esc(d.a)}</div>${tel}${meta?`<div class="cmeta">${meta}</div>`:''}${prods}${src}${link}`;
   c.onclick = ev => {
     if (ev.target.closest('a')) return;
+    // Re-rendering the list would jump the page (phones) or the list (desktop)
+    // back to the top; keep the shopper's place. The pinned map shows the store.
+    const y = window.scrollY, ly = $('list').scrollTop;
     sel = (sel===d?null:d); render();
+    window.scrollTo(0, y); $('list').scrollTop = ly;
     if (sel){ map.setView([d.la,d.lo], Math.max(map.getZoom(),12)); markers.get(d)?.openPopup(); }
   };
   return c;
